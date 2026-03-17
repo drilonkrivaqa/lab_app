@@ -21,13 +21,43 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
   double bateria = 0.0;
   Duration _kohaFundit = Duration.zero;
 
+  double get _rrjedhaEfektive => gjeneratoriAktiv ? rrjedhaUjit : 0.0;
+
   @override
   void initState() {
     super.initState();
-    _kontrolleri =
-    AnimationController(vsync: this, duration: const Duration(seconds: 2))
-      ..addListener(_perditesoSimulimin)
-      ..repeat();
+    _kontrolleri = AnimationController(
+      vsync: this,
+      duration: _llogaritKohezgjatjen(0.7),
+    )..addListener(_perditesoSimulimin);
+
+    _sinkronizoAnimacionin();
+  }
+
+  Duration _llogaritKohezgjatjen(double rrjedha) {
+    final r = rrjedha.clamp(0.0, 1.0);
+    final ms = (2400 - (r * 1900)).round(); // 2400ms -> 500ms
+    return Duration(milliseconds: ms.clamp(500, 2400));
+  }
+
+  void _sinkronizoAnimacionin() {
+    final rrjedha = _rrjedhaEfektive;
+
+    if (rrjedha <= 0.001) {
+      _kontrolleri.stop();
+      return;
+    }
+
+    final ishteAnimating = _kontrolleri.isAnimating;
+    final vleraAktuale = _kontrolleri.value;
+
+    _kontrolleri.duration = _llogaritKohezgjatjen(rrjedha);
+
+    if (!ishteAnimating) {
+      _kontrolleri.repeat();
+    } else {
+      _kontrolleri.repeat(min: vleraAktuale, max: 1.0);
+    }
   }
 
   void _perditesoSimulimin() {
@@ -62,6 +92,7 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
       rrjedhaUjit = 0.7;
       bateria = 0;
       _kohaFundit = Duration.zero;
+      _sinkronizoAnimacionin();
     });
   }
 
@@ -70,14 +101,12 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
     final tema = Theme.of(context);
     final skema = tema.colorScheme;
     final llambaNdezur = bateria >= 0.35;
-    final rrjedhaEfektive = gjeneratoriAktiv ? rrjedhaUjit : 0.0;
+    final rrjedhaEfektive = _rrjedhaEfektive;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final lartesiaSimulimit = (constraints.maxHeight * 0.42).clamp(
-          260.0,
-          520.0,
-        );
+        final lartesiaSimulimit =
+        (constraints.maxHeight * 0.42).clamp(260.0, 520.0);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 16),
@@ -117,8 +146,7 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                                   CustomPaint(
                                     painter: PiktoriGjeneratorit(
                                       progresi: _kontrolleri.value,
-                                      rrjedhaUjit:
-                                      0, // heq rrjedhën e vjetër të painter-it
+                                      rrjedhaUjit: 0.0, // old flow removed
                                       bateria: bateria,
                                     ),
                                     child: const SizedBox.expand(),
@@ -173,7 +201,12 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                             : 'Gjeneratori është ndalur',
                       ),
                       value: gjeneratoriAktiv,
-                      onChanged: (v) => setState(() => gjeneratoriAktiv = v),
+                      onChanged: (v) {
+                        setState(() {
+                          gjeneratoriAktiv = v;
+                          _sinkronizoAnimacionin();
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
                     _BllokuSlider(
@@ -183,10 +216,16 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                       ikona: Icons.water_drop_rounded,
                       femija: Slider(
                         value: rrjedhaUjit,
-                        min: 0.1,
+                        min: 0.0,
                         max: 1.0,
+                        divisions: 20,
                         label: '${(rrjedhaUjit * 100).toStringAsFixed(0)}%',
-                        onChanged: (v) => setState(() => rrjedhaUjit = v),
+                        onChanged: (v) {
+                          setState(() {
+                            rrjedhaUjit = v;
+                            _sinkronizoAnimacionin();
+                          });
+                        },
                       ),
                     ),
                     const Divider(height: 26),
@@ -198,8 +237,7 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                           width: _gjeresiaKarteles(constraints.maxWidth),
                           child: _VlereKartela(
                             etiketa: 'Ngarkesa e baterisë',
-                            vlera:
-                            '${(bateria * 100).toStringAsFixed(0)}%',
+                            vlera: '${(bateria * 100).toStringAsFixed(0)}%',
                             ikona: Icons.battery_charging_full_rounded,
                             accent: Colors.green,
                           ),
@@ -266,8 +304,7 @@ class _PaneliGjendjes extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tema = Theme.of(context);
-    final skema = tema.colorScheme;
+    final skema = Theme.of(context).colorScheme;
 
     return Container(
       width: double.infinity,
@@ -329,6 +366,9 @@ class _MesazhDidaktikHidro extends StatelessWidget {
     if (!gjeneratoriAktiv) {
       mesazhi =
       'Gjeneratori është i ndalur. Pa rrjedhje aktive të ujit, bateria nuk vazhdon të ngarkohet.';
+    } else if (rrjedhaUjit <= 0.001) {
+      mesazhi =
+      'Nuk ka rrjedhje uji. Prandaj rrota qëndron e palëvizshme dhe sistemi nuk prodhon energji.';
     } else if (rrjedhaUjit < 0.3) {
       mesazhi =
       'Rrjedha e ujit është e vogël. Provo ta rrisësh që bateria të ngarkohet më shpejt.';
@@ -465,12 +505,7 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
       final phase = (progresi + i * 0.13) % 1.0;
       final y = lerpDouble(-size.height * 0.35, size.height * 1.1, phase);
       final stripeHeight = size.height * (0.10 + 0.05 * (i % 3));
-      final stripeRect = Rect.fromLTWH(
-        0,
-        y,
-        size.width,
-        stripeHeight,
-      );
+      final stripeRect = Rect.fromLTWH(0, y, size.width, stripeHeight);
 
       final stripePaint = Paint()
         ..shader = LinearGradient(
@@ -553,9 +588,7 @@ class _PiktoriRipple extends CustomPainter {
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6 - (t * 0.6)
-        ..color = Colors.lightBlueAccent.withOpacity(
-          (1 - t) * opacityBase,
-        );
+        ..color = Colors.lightBlueAccent.withOpacity((1 - t) * opacityBase);
 
       final rect = Rect.fromCenter(
         center: center,
