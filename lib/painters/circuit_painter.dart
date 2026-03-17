@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 class PiktoriQarku extends CustomPainter {
@@ -8,6 +7,7 @@ class PiktoriQarku extends CustomPainter {
   final double rryma;
   final double tensioni;
   final double rezistenca;
+  final double shpejtesiaNgarkesave;
 
   PiktoriQarku({
     required this.progresi,
@@ -16,18 +16,22 @@ class PiktoriQarku extends CustomPainter {
     required this.rryma,
     required this.tensioni,
     required this.rezistenca,
+    required this.shpejtesiaNgarkesave,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    const bgColor = Color(0xFFF7F9FC);
+    const wireColor = Color(0xFF5C6670);
+
     final wirePaint = Paint()
-      ..color = const Color(0xFF5C6670)
+      ..color = wireColor
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
     final wireHighlight = Paint()
-      ..color = Colors.white.withOpacity(0.55)
+      ..color = Colors.white.withOpacity(0.45)
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
@@ -38,7 +42,7 @@ class PiktoriQarku extends CustomPainter {
     final bottom = size.height * 0.72;
 
     final bulbCenter = Offset(size.width * 0.50, top);
-    final bulbRadius = 30.0;
+    final bulbRadius = 28.0;
 
     final resistorLeft = size.width * 0.66;
     final resistorRight = size.width * 0.78;
@@ -50,41 +54,39 @@ class PiktoriQarku extends CustomPainter {
     final batteryTop = size.height * 0.38;
     final batteryBottom = size.height * 0.58;
 
-    final bg = Paint()..color = const Color(0xFFF7F9FC);
-    canvas.drawRect(Offset.zero & size, bg);
-
-    final border = Paint()
-      ..color = Colors.black12
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
     canvas.drawRect(
-      Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
-      border,
+      Offset.zero & size,
+      Paint()..color = bgColor,
     );
 
-    final path = Path();
+    canvas.drawRect(
+      Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
+      Paint()
+        ..color = Colors.black12
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
 
-    path.moveTo(batteryX, top);
-    path.lineTo(bulbCenter.dx - bulbRadius, top);
-
-    path.moveTo(bulbCenter.dx + bulbRadius, top);
-    path.lineTo(right, top);
-    path.lineTo(right, bottom);
-    path.lineTo(resistorRight, bottom);
-
-    path.moveTo(resistorLeft, bottom);
-    path.lineTo(switchRight, bottom);
+    final path = Path()
+      ..moveTo(batteryX, top)
+      ..lineTo(bulbCenter.dx - bulbRadius, top)
+      ..moveTo(bulbCenter.dx + bulbRadius, top)
+      ..lineTo(right, top)
+      ..lineTo(right, bottom)
+      ..lineTo(resistorRight, bottom)
+      ..moveTo(resistorLeft, bottom)
+      ..lineTo(switchRight, bottom);
 
     if (qarkuMbyllur) {
       path.lineTo(switchLeft, bottom);
     }
 
-    path.moveTo(switchLeft, bottom);
-    path.lineTo(left, bottom);
-    path.lineTo(left, batteryBottom);
-
-    path.moveTo(left, batteryTop);
-    path.lineTo(left, top);
+    path
+      ..moveTo(switchLeft, bottom)
+      ..lineTo(left, bottom)
+      ..lineTo(left, batteryBottom)
+      ..moveTo(left, batteryTop)
+      ..lineTo(left, top);
 
     canvas.drawPath(path, wirePaint);
     canvas.drawPath(path, wireHighlight);
@@ -103,7 +105,6 @@ class PiktoriQarku extends CustomPainter {
     if (qarkuMbyllur) {
       _drawCharges(
         canvas,
-        size,
         left: left,
         right: right,
         top: top,
@@ -163,7 +164,7 @@ class PiktoriQarku extends CustomPainter {
       shortLine,
     );
 
-    final tpPlus = TextPainter(
+    final plusPainter = TextPainter(
       text: const TextSpan(
         text: '+',
         style: TextStyle(
@@ -175,9 +176,9 @@ class PiktoriQarku extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
 
-    tpPlus.paint(canvas, Offset(x + 18, top - 4));
+    plusPainter.paint(canvas, Offset(x + 18, top - 4));
 
-    final tpMinus = TextPainter(
+    final minusPainter = TextPainter(
       text: const TextSpan(
         text: '-',
         style: TextStyle(
@@ -189,7 +190,7 @@ class PiktoriQarku extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
 
-    tpMinus.paint(canvas, Offset(x + 18, bottom - 14));
+    minusPainter.paint(canvas, Offset(x + 18, bottom - 14));
   }
 
   void _drawBulb(
@@ -200,9 +201,9 @@ class PiktoriQarku extends CustomPainter {
       ) {
     if (brightness > 0) {
       final glow = Paint()
-        ..color = Colors.yellow.withOpacity(0.35 + brightness * 0.3)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-      canvas.drawCircle(center, radius + 10, glow);
+        ..color = Colors.yellow.withOpacity(0.22 + brightness * 0.22)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+      canvas.drawCircle(center, radius + 8, glow);
     }
 
     final fill = Paint()
@@ -225,14 +226,14 @@ class PiktoriQarku extends CustomPainter {
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
-    final path = Path()
+    final filamentPath = Path()
       ..moveTo(center.dx - 12, center.dy + 4)
       ..lineTo(center.dx - 6, center.dy - 4)
       ..lineTo(center.dx, center.dy + 4)
       ..lineTo(center.dx + 6, center.dy - 4)
       ..lineTo(center.dx + 12, center.dy + 4);
 
-    canvas.drawPath(path, filament);
+    canvas.drawPath(filamentPath, filament);
 
     final baseRect = Rect.fromCenter(
       center: Offset(center.dx, center.dy + radius + 12),
@@ -256,26 +257,32 @@ class PiktoriQarku extends CustomPainter {
       double right,
       double y,
       ) {
-    final resistorPaint = Paint()
-      ..color = const Color(0xFFF5D7A1)
-      ..style = PaintingStyle.fill;
+    final rect = Rect.fromLTWH(left, y - 14, right - left, 28);
 
-    final borderPaint = Paint()
-      ..color = Colors.black87
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+    canvas.drawRect(
+      rect,
+      Paint()..color = const Color(0xFFF5D7A1),
+    );
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..color = Colors.black87
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
 
-    final rect = Rect.fromLTWH(left, y - 16, right - left, 32);
-    canvas.drawRect(rect, resistorPaint);
-    canvas.drawRect(rect, borderPaint);
-
-    final stripePaint1 = Paint()..color = Colors.brown;
-    final stripePaint2 = Paint()..color = Colors.red;
-    final stripePaint3 = Paint()..color = Colors.blue;
-
-    canvas.drawRect(Rect.fromLTWH(left + 14, y - 16, 6, 32), stripePaint1);
-    canvas.drawRect(Rect.fromLTWH(left + 28, y - 16, 6, 32), stripePaint2);
-    canvas.drawRect(Rect.fromLTWH(left + 42, y - 16, 6, 32), stripePaint3);
+    canvas.drawRect(
+      Rect.fromLTWH(left + 14, y - 14, 6, 28),
+      Paint()..color = Colors.brown,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(left + 28, y - 14, 6, 28),
+      Paint()..color = Colors.red,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(left + 42, y - 14, 6, 28),
+      Paint()..color = Colors.blue,
+    );
   }
 
   void _drawSwitch(
@@ -302,8 +309,7 @@ class PiktoriQarku extends CustomPainter {
   }
 
   void _drawCharges(
-      Canvas canvas,
-      Size size, {
+      Canvas canvas, {
         required double left,
         required double right,
         required double top,
@@ -315,39 +321,48 @@ class PiktoriQarku extends CustomPainter {
         required double switchLeft,
       }) {
     final points = <Offset>[];
+    const spacing = 28.0;
 
-    for (double x = left; x < bulbCenter.dx - bulbRadius; x += 22) {
+    for (double x = left; x < bulbCenter.dx - bulbRadius; x += spacing) {
       points.add(Offset(x, top));
     }
-    for (double x = bulbCenter.dx + bulbRadius; x < right; x += 22) {
+    for (double x = bulbCenter.dx + bulbRadius; x < right; x += spacing) {
       points.add(Offset(x, top));
     }
-    for (double y = top; y < bottom; y += 22) {
+    for (double y = top; y < bottom; y += spacing) {
       points.add(Offset(right, y));
     }
-    for (double x = right; x > resistorRight; x -= 22) {
+    for (double x = right; x > resistorRight; x -= spacing) {
       points.add(Offset(x, bottom));
     }
-    for (double x = resistorLeft; x > switchLeft; x -= 22) {
+    for (double x = resistorLeft; x > switchLeft; x -= spacing) {
       points.add(Offset(x, bottom));
     }
-    for (double x = switchLeft; x > left; x -= 22) {
+    for (double x = switchLeft; x > left; x -= spacing) {
       points.add(Offset(x, bottom));
     }
-    for (double y = bottom; y > top; y -= 22) {
+    for (double y = bottom; y > top; y -= spacing) {
       points.add(Offset(left, y));
     }
 
     if (points.isEmpty) return;
 
-    final shift = (progresi * points.length).floor();
+    // Kjo është pjesa e rëndësishme:
+    // progresi bazë shumëzohet me shpejtësinë reale
+    // që varet nga tensioni / rezistenca.
+    final effectiveProgress = (progresi * shpejtesiaNgarkesave * 6.0) % 1.0;
+    final shift = (effectiveProgress * points.length).floor();
 
     for (int i = 0; i < points.length; i++) {
       final p = points[(i + shift) % points.length];
-      final opacity = i % 4 == 0 ? 1.0 : 0.45;
-      final paint = Paint()
-        ..color = const Color(0xFF42A5F5).withOpacity(opacity);
-      canvas.drawCircle(p, 4, paint);
+      final strong = i % 4 == 0;
+
+      canvas.drawCircle(
+        p,
+        strong ? 4.2 : 3.1,
+        Paint()
+          ..color = const Color(0xFF42A5F5).withOpacity(strong ? 0.95 : 0.38),
+      );
     }
   }
 
@@ -376,6 +391,7 @@ class PiktoriQarku extends CustomPainter {
         ndricimi != oldDelegate.ndricimi ||
         rryma != oldDelegate.rryma ||
         tensioni != oldDelegate.tensioni ||
-        rezistenca != oldDelegate.rezistenca;
+        rezistenca != oldDelegate.rezistenca ||
+        shpejtesiaNgarkesave != oldDelegate.shpejtesiaNgarkesave;
   }
 }

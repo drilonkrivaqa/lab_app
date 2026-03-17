@@ -24,24 +24,31 @@ class _FaqjaQarkuState extends State<FaqjaQarku>
     return (rryma / 3.0).clamp(0.0, 1.0);
   }
 
+  double get shpejtesiaNgarkesave {
+    if (!qarkuMbyllur) return 0.0;
+
+    // Baza fizike e thjeshtuar:
+    // më shumë tension -> më shpejt
+    // më shumë rezistencë -> më ngadalë
+    final speed = (tensioni / rezistenca) / 3.0;
+    return speed.clamp(0.08, 1.0);
+  }
+
+  String get pershkrimiShpejtesise {
+    if (!qarkuMbyllur) return 'Zero';
+    if (shpejtesiaNgarkesave < 0.22) return 'Shumë e ngadaltë';
+    if (shpejtesiaNgarkesave < 0.45) return 'E ngadaltë';
+    if (shpejtesiaNgarkesave < 0.72) return 'Mesatare';
+    return 'E shpejtë';
+  }
+
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    _syncAnim();
-  }
-
-  void _syncAnim() {
-    if (qarkuMbyllur) {
-      if (!_controller.isAnimating) {
-        _controller.repeat();
-      }
-    } else {
-      _controller.stop();
-    }
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
   }
 
   @override
@@ -94,6 +101,7 @@ class _FaqjaQarkuState extends State<FaqjaQarku>
                           rryma: rryma,
                           tensioni: tensioni,
                           rezistenca: rezistenca,
+                          shpejtesiaNgarkesave: shpejtesiaNgarkesave,
                         ),
                         child: const SizedBox.expand(),
                       );
@@ -131,7 +139,6 @@ class _FaqjaQarkuState extends State<FaqjaQarku>
                   onChanged: (value) {
                     setState(() {
                       qarkuMbyllur = value;
-                      _syncAnim();
                     });
                   },
                 ),
@@ -187,6 +194,10 @@ class _FaqjaQarkuState extends State<FaqjaQarku>
                           : ndricimi < 0.7
                           ? 'Mesatare'
                           : 'E fortë',
+                    ),
+                    _InfoBox(
+                      title: 'Shpejtësia',
+                      value: pershkrimiShpejtesise,
                     ),
                   ],
                 ),
