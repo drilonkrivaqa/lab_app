@@ -19,45 +19,24 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
   bool gjeneratoriAktiv = true;
   double rrjedhaUjit = 0.7;
   double bateria = 0.0;
+
   Duration _kohaFundit = Duration.zero;
+  double _progresiVizual = 0.0;
 
   double get _rrjedhaEfektive => gjeneratoriAktiv ? rrjedhaUjit : 0.0;
 
   @override
   void initState() {
     super.initState();
+
+    // Controller is now only a steady heartbeat for simulation updates.
+    // This keeps battery draining even when water flow becomes 0.
     _kontrolleri = AnimationController(
       vsync: this,
-      duration: _llogaritKohezgjatjen(0.7),
+      duration: const Duration(seconds: 10),
     )..addListener(_perditesoSimulimin);
 
-    _sinkronizoAnimacionin();
-  }
-
-  Duration _llogaritKohezgjatjen(double rrjedha) {
-    final r = rrjedha.clamp(0.0, 1.0);
-    final ms = (2400 - (r * 1900)).round(); // 2400ms -> 500ms
-    return Duration(milliseconds: ms.clamp(500, 2400));
-  }
-
-  void _sinkronizoAnimacionin() {
-    final rrjedha = _rrjedhaEfektive;
-
-    if (rrjedha <= 0.001) {
-      _kontrolleri.stop();
-      return;
-    }
-
-    final ishteAnimating = _kontrolleri.isAnimating;
-    final vleraAktuale = _kontrolleri.value;
-
-    _kontrolleri.duration = _llogaritKohezgjatjen(rrjedha);
-
-    if (!ishteAnimating) {
-      _kontrolleri.repeat();
-    } else {
-      _kontrolleri.repeat(min: vleraAktuale, max: 1.0);
-    }
+    _kontrolleri.repeat();
   }
 
   void _perditesoSimulimin() {
@@ -66,15 +45,32 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
     _kohaFundit = koha;
     if (dt <= 0) return;
 
-    final eRe = HidroModel.ndryshoNgarkesen(
+    final rrjedhaEfektive = _rrjedhaEfektive;
+
+    final bateriaRe = HidroModel.ndryshoNgarkesen(
       aktuale: bateria,
       aktiv: gjeneratoriAktiv,
       rrjedha: rrjedhaUjit,
       dt: dt,
     );
 
-    if ((eRe - bateria).abs() > 0.0005 && mounted) {
-      setState(() => bateria = eRe);
+    // Visual wheel/water progress is advanced manually based on real water flow.
+    // When there is no flow, progress stops, so the wheel stays stationary.
+    final shpejtesiaRrotes = 0.15 + (rrjedhaEfektive * 1.85);
+    if (rrjedhaEfektive > 0.001) {
+      _progresiVizual = (_progresiVizual + dt * shpejtesiaRrotes) % 1.0;
+    }
+
+    final kaNdryshimBaterie = (bateriaRe - bateria).abs() > 0.0005;
+
+    if ((kaNdryshimBaterie || rrjedhaEfektive > 0.001) && mounted) {
+      setState(() {
+        bateria = bateriaRe;
+      });
+    } else if (kaNdryshimBaterie && mounted) {
+      setState(() {
+        bateria = bateriaRe;
+      });
     }
   }
 
@@ -92,7 +88,7 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
       rrjedhaUjit = 0.7;
       bateria = 0;
       _kohaFundit = Duration.zero;
-      _sinkronizoAnimacionin();
+      _progresiVizual = 0.0;
     });
   }
 
@@ -145,15 +141,26 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                                 children: [
                                   CustomPaint(
                                     painter: PiktoriGjeneratorit(
-                                      progresi: _kontrolleri.value,
-                                      rrjedhaUjit: 0.0, // old flow removed
+                                      progresi: _progresiVizual,
+                                      rrjedhaUjit: 0.0,
                                       bateria: bateria,
                                     ),
                                     child: const SizedBox.expand(),
                                   ),
+
+                                  // Mask old rectangular waterfall visuals that may
+                                  // still be drawn inside hydro_painter.
+                                  IgnorePointer(
+                                    child: _MbulesaRrjedhesSeVjeter(
+                                      backgroundColor: skema
+                                          .surfaceContainerHighest
+                                          .withOpacity(0.35),
+                                    ),
+                                  ),
+
                                   IgnorePointer(
                                     child: _RrjedhaUjitOverlay(
-                                      progresi: _kontrolleri.value,
+                                      progresi: _progresiVizual,
                                       rrjedhaUjit: rrjedhaEfektive,
                                     ),
                                   ),
@@ -204,7 +211,6 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                       onChanged: (v) {
                         setState(() {
                           gjeneratoriAktiv = v;
-                          _sinkronizoAnimacionin();
                         });
                       },
                     ),
@@ -223,7 +229,6 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
                         onChanged: (v) {
                           setState(() {
                             rrjedhaUjit = v;
-                            _sinkronizoAnimacionin();
                           });
                         },
                       ),
@@ -322,7 +327,8 @@ class _PaneliGjendjes extends StatelessWidget {
             ikona: gjeneratoriAktiv
                 ? Icons.play_circle_fill_rounded
                 : Icons.pause_circle_filled_rounded,
-            etiketa: gjeneratoriAktiv ? 'Gjenerator aktiv' : 'Gjenerator i ndalur',
+            etiketa:
+            gjeneratoriAktiv ? 'Gjenerator aktiv' : 'Gjenerator i ndalur',
             ngjyra: gjeneratoriAktiv ? Colors.green : Colors.grey,
           ),
           _StatusChip(
@@ -368,7 +374,7 @@ class _MesazhDidaktikHidro extends StatelessWidget {
       'Gjeneratori është i ndalur. Pa rrjedhje aktive të ujit, bateria nuk vazhdon të ngarkohet.';
     } else if (rrjedhaUjit <= 0.001) {
       mesazhi =
-      'Nuk ka rrjedhje uji. Prandaj rrota qëndron e palëvizshme dhe sistemi nuk prodhon energji.';
+      'Nuk ka rrjedhje uji. Prandaj rrota qëndron e palëvizshme dhe bateria fillon të zbrazet gradualisht.';
     } else if (rrjedhaUjit < 0.3) {
       mesazhi =
       'Rrjedha e ujit është e vogël. Provo ta rrisësh që bateria të ngarkohet më shpejt.';
@@ -400,6 +406,41 @@ class _MesazhDidaktikHidro extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MbulesaRrjedhesSeVjeter extends StatelessWidget {
+  final Color backgroundColor;
+
+  const _MbulesaRrjedhesSeVjeter({
+    required this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        final h = c.maxHeight;
+
+        return Stack(
+          children: [
+            Positioned(
+              left: w * 0.055,
+              top: h * 0.08,
+              width: w * 0.22,
+              height: h * 0.70,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
