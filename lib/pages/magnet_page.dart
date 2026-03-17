@@ -14,21 +14,21 @@ class FaqjaMagneti extends StatefulWidget {
   State<FaqjaMagneti> createState() => _FaqjaMagnetiState();
 }
 
-class _FaqjaMagnetiState extends State<FaqjaMagneti>
-    with TickerProviderStateMixin {
+class _FaqjaMagnetiState extends State<FaqjaMagneti> with TickerProviderStateMixin {
   late final AnimationController _vizualController;
   late final AnimationController _simController;
 
-  // Pozicioni i magnetit në boshtin X
+  static const double _coilCenterX = 90.0;
+  static const double _minMagnetX = -160.0;
+  static const double _maxMagnetX = 155.0;
+
   double magnetX = -120;
-
-  // Intensiteti i induksionit që shfaqet në UI / llambë
-  double forcaInduksionit = 0;
-
-  // Shpejtësia aktuale horizontale e magnetit (përdoret për fizikën)
   double magnetVelocity = 0;
+  double forcaInduksionit = 0;
+  double sinjaliRrymes = 0;
+  double currentIntensity = 0;
+  double currentDirection = 0;
 
-  // Parametra shtesë
   bool showFieldLines = true;
   bool showCompass = true;
 
@@ -36,38 +36,31 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
   double coilTurns = 20;
   double bulbSensitivity = 1.0;
 
-  // Compass
   double compassAngle = 0;
-  double targetCompassAngle = 0;
 
-  // Gjendja e drag
   bool _isDragging = false;
-  DateTime? _kohaFundit;
-
-  // Për përditësim fizik
   Duration _lastTick = Duration.zero;
+  double _fluxiFundit = 0;
+  DateTime? _kohaDrag;
 
-  // Pozicioni i spiralës në painter
-  static const double _coilCenterX = 90.0;
-  static const double _minMagnetX = -150.0;
-  static const double _maxMagnetX = 150.0;
-
-  double get _afersia =>
-      (1 - ((magnetX - _coilCenterX).abs() / 260)).clamp(0.0, 1.0);
+  double get _afersia {
+    final d = ((magnetX - _coilCenterX).abs() / 260).clamp(0.0, 1.3);
+    return (1 - d).clamp(0.0, 1.0);
+  }
 
   @override
   void initState() {
     super.initState();
-
     _vizualController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
 
     _simController = AnimationController(
       vsync: this,
       duration: const Duration(days: 1),
-    )..addListener(_tickSimulimin)
+    )
+      ..addListener(_tickSimulimin)
       ..repeat();
   }
 
@@ -80,56 +73,58 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
 
   void _tickSimulimin() {
     final now = _simController.lastElapsedDuration ?? Duration.zero;
-    double dt = 0.016;
+    var dt = 0.016;
 
     if (_lastTick != Duration.zero) {
-      final raw = (now - _lastTick).inMicroseconds / 1000000.0;
-      dt = raw.clamp(0.001, 0.035);
+      dt = ((now - _lastTick).inMicroseconds / 1000000.0).clamp(0.001, 0.035);
     }
     _lastTick = now;
 
-    // Magneti nuk vazhdon të lëvizë vetë pasi përdoruesi e lëshon.
-    // Vetëm shpejtësia zbehet gradualisht për efektin e induksionit / llambës.
     if (!_isDragging) {
-      magnetVelocity = ui
-          .lerpDouble(magnetVelocity, 0, (8.0 * dt).clamp(0.0, 1.0))!
-          .clamp(-5000.0, 5000.0);
-
-      if (magnetVelocity.abs() < 5) {
-        magnetVelocity = 0;
-      }
+      magnetVelocity = ui.lerpDouble(magnetVelocity, 0, (6.2 * dt).clamp(0.0, 1.0))!.clamp(-1200.0, 1200.0);
+      if (magnetVelocity.abs() < 6) magnetVelocity = 0;
     }
 
-    final proximity = _afersia;
-    final speed = magnetVelocity.abs();
-
-    final fuqiRaw = InduksionModel.llogaritFuqine(
-      shpejtesia: speed,
-      largesiaNorm: 1 - proximity,
+    final afersia = _afersia;
+    final fluksi = InduksionModel.llogaritFluks(
+      afersia: afersia,
+      forcaMagnetit: magnetStrength,
+      mbeshtjelljet: coilTurns,
     );
 
-    final turnsFactor =
-    ui.lerpDouble(0.75, 1.5, ((coilTurns - 5) / 45).clamp(0.0, 1.0))!;
-    final strengthFactor =
-    ui.lerpDouble(0.6, 1.6, magnetStrength.clamp(0.0, 1.0))!;
-    final bulbFactor =
-    ui.lerpDouble(0.7, 1.5, bulbSensitivity.clamp(0.0, 1.0))!;
+    final deltaFluks = (fluksi - _fluxiFundit) / dt;
+    _fluxiFundit = fluksi;
 
-    final targetInduction =
-    (fuqiRaw * turnsFactor * strengthFactor * bulbFactor).clamp(0.0, 1.0);
+    final targetSignal = InduksionModel.llogaritSinjalInduksioni(
+      deltaFluksi: deltaFluks,
+      shpejtesia: magnetVelocity,
+      afersia: afersia,
+      ndjeshmeriaLlambes: bulbSensitivity,
+    );
 
-    // Kur përdoruesi ndalon, llamba dhe vlera zbehen butë, por jo shumë ngadalë.
-    final inductionLerp = _isDragging ? 0.16 : 0.22;
-    forcaInduksionit = ui
-        .lerpDouble(forcaInduksionit, targetInduction, inductionLerp)!
-        .clamp(0.0, 1.0);
+    final lerpSignal = _isDragging ? 0.18 : 0.12;
+    sinjaliRrymes = ui.lerpDouble(sinjaliRrymes, targetSignal, lerpSignal)!.clamp(-1.0, 1.0);
 
-    final dx = (_coilCenterX - magnetX);
-    final normDx = (dx / 140).clamp(-1.0, 1.0);
-    final fieldInfluence = (_afersia * magnetStrength).clamp(0.0, 1.0);
+    final targetIntensity = sinjaliRrymes.abs();
+    final intensityLerp = targetIntensity > currentIntensity ? 0.22 : (_isDragging ? 0.16 : 0.08);
+    currentIntensity = ui.lerpDouble(currentIntensity, targetIntensity, intensityLerp)!.clamp(0.0, 1.0);
 
-    targetCompassAngle = normDx * 0.95 * fieldInfluence;
-    compassAngle = ui.lerpDouble(compassAngle, targetCompassAngle, 0.14)!;
+    final directionThreshold = 0.05;
+    if (sinjaliRrymes.abs() < directionThreshold) {
+      currentDirection = ui.lerpDouble(currentDirection, 0, 0.12)!;
+    } else {
+      currentDirection = ui.lerpDouble(currentDirection, sinjaliRrymes.sign, 0.24)!;
+    }
+
+    final bulbTarget = (currentIntensity * (0.85 + afersia * 0.35)).clamp(0.0, 1.0);
+    final bulbLerp = bulbTarget > forcaInduksionit ? 0.2 : (_isDragging ? 0.14 : 0.09);
+    forcaInduksionit = ui.lerpDouble(forcaInduksionit, bulbTarget, bulbLerp)!.clamp(0.0, 1.0);
+
+    final distanceNorm = ((magnetX - _coilCenterX).abs() / 220).clamp(0.0, 1.0);
+    final fieldStrength = math.pow(1 - distanceNorm, 2.2).toDouble() * (0.35 + 0.65 * magnetStrength);
+    final orientation = (magnetX < _coilCenterX ? 1.0 : -1.0);
+    final targetCompass = orientation * fieldStrength * 1.05;
+    compassAngle = ui.lerpDouble(compassAngle, targetCompass, 0.08 + fieldStrength * 0.12)!;
 
     if (mounted) {
       setState(() {});
@@ -138,48 +133,38 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
 
   void _nisTerheqjen(DragStartDetails _) {
     _isDragging = true;
-    _kohaFundit = DateTime.now();
-    magnetVelocity = 0;
+    _kohaDrag = DateTime.now();
   }
 
   void _levizMagnetin(DragUpdateDetails details) {
     final tani = DateTime.now();
-    final dtMs = (_kohaFundit == null)
-        ? 16
-        : tani.difference(_kohaFundit!).inMilliseconds.clamp(1, 50);
-    _kohaFundit = tani;
+    final dtUs = (_kohaDrag == null) ? 16000 : tani.difference(_kohaDrag!).inMicroseconds.clamp(2000, 48000);
+    _kohaDrag = tani;
 
-    final xRi = (magnetX + details.delta.dx).clamp(_minMagnetX, _maxMagnetX);
-    final shpejtesiaPxPerSec = (details.delta.dx / dtMs) * 1000.0;
+    final rawDelta = details.delta.dx;
+    final xRi = (magnetX + rawDelta).clamp(_minMagnetX, _maxMagnetX);
+
+    var rawV = (rawDelta / dtUs) * 1000000;
+    if (rawDelta.abs() < 0.15) rawV = 0;
+
+    if (xRi == _minMagnetX || xRi == _maxMagnetX) {
+      rawV *= 0.35;
+    }
 
     setState(() {
       magnetX = xRi;
-
-      // Përdoret një zbutje e lehtë që të mos ketë “spike” të çuditshme
-      magnetVelocity = ui.lerpDouble(
-        magnetVelocity,
-        shpejtesiaPxPerSec,
-        0.75,
-      )!;
+      magnetVelocity = ui.lerpDouble(magnetVelocity, rawV, 0.32)!.clamp(-1000.0, 1000.0);
+      if (magnetVelocity.abs() < 3.5) magnetVelocity = 0;
     });
   }
 
   void _ndaloTerheqjen([DragEndDetails? _]) {
     setState(() {
       _isDragging = false;
-      _kohaFundit = null;
-
-      // Ndalet menjëherë pa rrëshqitje të magnetit.
-      // Shpejtësia vetëm zbehet për llogaritjen vizuale të induksionit.
-      magnetVelocity *= 0.18;
-      if (magnetVelocity.abs() < 40) {
-        magnetVelocity = 0;
-      }
+      _kohaDrag = null;
+      magnetVelocity *= 0.35;
+      if (magnetVelocity.abs() < 24) magnetVelocity = 0;
     });
-  }
-
-  void _ndaloTerheqjenPaDetaje() {
-    _ndaloTerheqjen();
   }
 
   void _rivendos() {
@@ -187,16 +172,32 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
       magnetX = -120;
       magnetVelocity = 0;
       forcaInduksionit = 0;
+      sinjaliRrymes = 0;
+      currentIntensity = 0;
+      currentDirection = 0;
       compassAngle = 0;
-      targetCompassAngle = 0;
+      _fluxiFundit = 0;
+
       showFieldLines = true;
       showCompass = true;
       magnetStrength = 1.0;
       coilTurns = 20;
       bulbSensitivity = 1.0;
+
       _isDragging = false;
-      _kohaFundit = null;
+      _kohaDrag = null;
     });
+  }
+
+  String get _drejtimiRrymes {
+    if (currentIntensity < 0.05 || currentDirection.abs() < 0.2) return 'Pa rrymë';
+    return currentDirection > 0 ? 'Orar' : 'Kundërorar';
+  }
+
+  String get _statusLidhurMeSpiralen {
+    if (magnetVelocity.abs() < 8) return 'I palëvizshëm';
+    final toward = (_coilCenterX - magnetX) * magnetVelocity > 0;
+    return toward ? 'Po afrohet' : 'Po largohet';
   }
 
   @override
@@ -210,75 +211,71 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
           Kartela(
             child: SizedBox(
               height: 430,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  return GestureDetector(
-                    onPanStart: _nisTerheqjen,
-                    onPanUpdate: _levizMagnetin,
-                    onPanEnd: _ndaloTerheqjen,
-                    onPanCancel: _ndaloTerheqjenPaDetaje,
-                    child: Stack(
-                      children: [
-                        AnimatedBuilder(
-                          animation: _vizualController,
-                          builder: (context, _) => CustomPaint(
-                            painter: PiktoriMagneti(
+              child: GestureDetector(
+                onPanStart: _nisTerheqjen,
+                onPanUpdate: _levizMagnetin,
+                onPanEnd: _ndaloTerheqjen,
+                onPanCancel: () => _ndaloTerheqjen(),
+                child: Stack(
+                  children: [
+                    AnimatedBuilder(
+                      animation: _vizualController,
+                      builder: (context, _) => CustomPaint(
+                        painter: PiktoriMagneti(
+                          progresi: _vizualController.value,
+                          magnetX: magnetX,
+                          niveliDrites: forcaInduksionit,
+                          afersia: _afersia,
+                          coilTurns: coilTurns,
+                          currentIntensity: currentIntensity,
+                          currentDirection: currentDirection,
+                        ),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                    if (showFieldLines)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _FieldLinesPainter(
                               progresi: _vizualController.value,
                               magnetX: magnetX,
-                              niveliDrites: forcaInduksionit,
                               afersia: _afersia,
-                            ),
-                            child: const SizedBox.expand(),
-                          ),
-                        ),
-                        if (showFieldLines)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: CustomPaint(
-                                painter: _FieldLinesPainter(
-                                  magnetX: magnetX,
-                                  afersia: _afersia,
-                                  magnetStrength: magnetStrength,
-                                ),
-                              ),
+                              magnetStrength: magnetStrength,
+                              induction: currentIntensity,
                             ),
                           ),
-                        if (showCompass)
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: CustomPaint(
-                                painter: _CompassOverlayPainter(
-                                  angle: compassAngle,
-                                  activity: (_afersia * magnetStrength)
-                                      .clamp(0.0, 1.0),
-                                ),
-                              ),
+                        ),
+                      ),
+                    if (showCompass)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _CompassOverlayPainter(
+                              angle: compassAngle,
+                              activity: (_afersia * magnetStrength).clamp(0.0, 1.0),
                             ),
                           ),
-                        Positioned(
-                          left: 12,
-                          top: 12,
-                          child: _BadgeInfo(
-                            label:
-                            llambaNdezur ? 'Llamba: Ndezur' : 'Llamba: Fikur',
-                            icon: llambaNdezur
-                                ? Icons.lightbulb
-                                : Icons.lightbulb_outline,
-                          ),
                         ),
-                        Positioned(
-                          right: 12,
-                          top: 12,
-                          child: _BadgeInfo(
-                            label:
-                            'v = ${magnetVelocity.abs().toStringAsFixed(0)} px/s',
-                            icon: Icons.speed,
-                          ),
-                        ),
-                      ],
+                      ),
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      child: _BadgeInfo(
+                        label: llambaNdezur ? 'Llamba: Ndezur' : 'Llamba: Fikur',
+                        icon: llambaNdezur ? Icons.lightbulb : Icons.lightbulb_outline,
+                      ),
                     ),
-                  );
-                },
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: _BadgeInfo(
+                        label: 'Rryma: $_drejtimiRrymes',
+                        icon: Icons.sync,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -291,13 +288,12 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                   'Si përdoret',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 const Text(
-                  'Tërhiq magnetin majtas-djathtas pranë spiralës. '
-                      'Llamba ndizet më shumë kur magneti lëviz më shpejt pranë spiralës. '
-                      'Mund të shfaqësh ose fshehësh vijat e fushës magnetike dhe kompasin.',
+                  'Lëviz magnetin majtas-djathtas pranë spiralës. Rryma induktohet kur fluksi magnetik ndryshon; '
+                  'sa më shpejt dhe sa më afër spirales, aq më e fortë është ndezja e llambës.',
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Shfaq vijat e fushës'),
@@ -310,11 +306,8 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                   value: showCompass,
                   onChanged: (v) => setState(() => showCompass = v),
                 ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Forca e magnetit',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                const SizedBox(height: 8),
+                const Text('Forca e magnetit', style: TextStyle(fontWeight: FontWeight.w600)),
                 Slider(
                   value: magnetStrength,
                   min: 0,
@@ -323,10 +316,7 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                   label: magnetStrength.toStringAsFixed(1),
                   onChanged: (v) => setState(() => magnetStrength = v),
                 ),
-                const Text(
-                  'Numri i mbështjelljeve',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                const Text('Numri i mbështjelljeve', style: TextStyle(fontWeight: FontWeight.w600)),
                 Slider(
                   value: coilTurns,
                   min: 5,
@@ -335,10 +325,7 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                   label: coilTurns.round().toString(),
                   onChanged: (v) => setState(() => coilTurns = v),
                 ),
-                const Text(
-                  'Ndjeshmëria e llambës',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                const Text('Ndjeshmëria e llambës', style: TextStyle(fontWeight: FontWeight.w600)),
                 Slider(
                   value: bulbSensitivity,
                   min: 0,
@@ -347,27 +334,17 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                   label: bulbSensitivity.toStringAsFixed(1),
                   onChanged: (v) => setState(() => bulbSensitivity = v),
                 ),
-                const SizedBox(height: 12),
-                InfoRresht(
-                  etiketa: 'Gjendja e llambës',
-                  vlera: llambaNdezur ? 'Ndezur' : 'Fikur',
-                ),
+                const SizedBox(height: 10),
+                InfoRresht(etiketa: 'Gjendja e llambës', vlera: llambaNdezur ? 'Ndezur' : 'Fikur'),
                 const SizedBox(height: 6),
-                InfoRresht(
-                  etiketa: 'Forca e induksionit',
-                  vlera: forcaInduksionit.toStringAsFixed(2),
-                ),
+                InfoRresht(etiketa: 'Vlera e induksionit', vlera: currentIntensity.toStringAsFixed(2)),
                 const SizedBox(height: 6),
-                InfoRresht(
-                  etiketa: 'Afërsia me spiralen',
-                  vlera: _afersia.toStringAsFixed(2),
-                ),
+                InfoRresht(etiketa: 'Drejtimi i rrymës', vlera: _drejtimiRrymes),
                 const SizedBox(height: 6),
-                InfoRresht(
-                  etiketa: 'Shpejtësia e magnetit',
-                  vlera: magnetVelocity.abs().toStringAsFixed(0),
-                ),
-                const SizedBox(height: 16),
+                InfoRresht(etiketa: 'Lëvizja ndaj spirales', vlera: _statusLidhurMeSpiralen),
+                const SizedBox(height: 6),
+                InfoRresht(etiketa: 'Shpejtësia e magnetit', vlera: '${magnetVelocity.abs().toStringAsFixed(0)} px/s'),
+                const SizedBox(height: 14),
                 FilledButton.icon(
                   onPressed: _rivendos,
                   icon: const Icon(Icons.refresh),
@@ -395,23 +372,21 @@ class _BadgeInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.08),
+        color: const Color(0xFF1F2A37).withOpacity(0.78),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.black.withOpacity(0.08),
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16),
+            Icon(icon, size: 15, color: Colors.white),
             const SizedBox(width: 6),
             Text(
               label,
               style: const TextStyle(
                 fontSize: 12,
+                color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -423,245 +398,101 @@ class _BadgeInfo extends StatelessWidget {
 }
 
 class _FieldLinesPainter extends CustomPainter {
+  final double progresi;
   final double magnetX;
   final double afersia;
   final double magnetStrength;
+  final double induction;
 
   const _FieldLinesPainter({
+    required this.progresi,
     required this.magnetX,
     required this.afersia,
     required this.magnetStrength,
+    required this.induction,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerY = size.height * 0.40;
+    final centerY = size.height * 0.52;
     final magnetCenter = Offset(size.width * 0.5 + magnetX, centerY);
 
-    const magnetHalfWidth = 38.0;
-    const magnetHalfHeight = 18.0;
+    const halfWidth = 64.0;
+    const halfHeight = 19.0;
+    final leftFace = Offset(magnetCenter.dx - halfWidth, magnetCenter.dy);
+    final rightFace = Offset(magnetCenter.dx + halfWidth, magnetCenter.dy);
 
-    final leftFace = Offset(magnetCenter.dx - magnetHalfWidth, magnetCenter.dy);
-    final rightFace = Offset(magnetCenter.dx + magnetHalfWidth, magnetCenter.dy);
+    final visibility = (0.12 + afersia * 0.30 + magnetStrength * 0.30 + induction * 0.25).clamp(0.12, 0.82);
 
-    final visibility =
-    (0.30 + (afersia * 0.45) + (magnetStrength * 0.35)).clamp(0.25, 1.0);
-
-    final glowPaint = Paint()
-      ..color = Colors.cyan.withOpacity(0.11 * visibility)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6.5
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.5);
-
-    final mainPaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.90 * visibility)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final softPaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.58 * visibility)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final innerPaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.72 * visibility)
+    final basePaint = Paint()
+      ..color = const Color(0xFF607D8B).withOpacity(visibility)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..strokeCap = StrokeCap.round;
 
-    // Më shumë vijë për qartësi vizuale
-    final outerGaps = <double>[16, 30, 46, 64, 84, 106];
+    final glowPaint = Paint()
+      ..color = const Color(0xFF90CAF9).withOpacity(visibility * 0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.5);
 
-    for (int i = 0; i < outerGaps.length; i++) {
-      final gap = outerGaps[i];
-      final strokePaint = i < 4 ? mainPaint : softPaint;
+    const gaps = [24.0, 44.0, 68.0, 96.0];
+    for (int i = 0; i < gaps.length; i++) {
+      final wobble = math.sin((progresi * math.pi * 2) + i * 0.55) * (1.5 + induction * 1.5);
+      final gap = gaps[i] + wobble;
 
-      final topPath = Path()
-        ..moveTo(rightFace.dx, rightFace.dy - magnetHalfHeight - 2)
+      final top = Path()
+        ..moveTo(rightFace.dx, rightFace.dy - halfHeight)
         ..cubicTo(
           rightFace.dx + gap * 0.55,
-          rightFace.dy - magnetHalfHeight - 5,
-          magnetCenter.dx + gap * 0.92,
-          magnetCenter.dy - gap * 0.96,
+          rightFace.dy - halfHeight,
+          magnetCenter.dx + gap * 0.88,
+          magnetCenter.dy - gap,
           magnetCenter.dx,
           magnetCenter.dy - gap,
         )
         ..cubicTo(
-          magnetCenter.dx - gap * 0.92,
-          magnetCenter.dy - gap * 0.96,
+          magnetCenter.dx - gap * 0.88,
+          magnetCenter.dy - gap,
           leftFace.dx - gap * 0.55,
-          leftFace.dy - magnetHalfHeight - 5,
+          leftFace.dy - halfHeight,
           leftFace.dx,
-          leftFace.dy - magnetHalfHeight - 2,
+          leftFace.dy - halfHeight,
         );
 
-      final bottomPath = Path()
-        ..moveTo(rightFace.dx, rightFace.dy + magnetHalfHeight + 2)
+      final bottom = Path()
+        ..moveTo(rightFace.dx, rightFace.dy + halfHeight)
         ..cubicTo(
           rightFace.dx + gap * 0.55,
-          rightFace.dy + magnetHalfHeight + 5,
-          magnetCenter.dx + gap * 0.92,
-          magnetCenter.dy + gap * 0.96,
+          rightFace.dy + halfHeight,
+          magnetCenter.dx + gap * 0.88,
+          magnetCenter.dy + gap,
           magnetCenter.dx,
           magnetCenter.dy + gap,
         )
         ..cubicTo(
-          magnetCenter.dx - gap * 0.92,
-          magnetCenter.dy + gap * 0.96,
+          magnetCenter.dx - gap * 0.88,
+          magnetCenter.dy + gap,
           leftFace.dx - gap * 0.55,
-          leftFace.dy + magnetHalfHeight + 5,
+          leftFace.dy + halfHeight,
           leftFace.dx,
-          leftFace.dy + magnetHalfHeight + 2,
+          leftFace.dy + halfHeight,
         );
 
-      canvas.drawPath(topPath, glowPaint);
-      canvas.drawPath(bottomPath, glowPaint);
-      canvas.drawPath(topPath, strokePaint);
-      canvas.drawPath(bottomPath, strokePaint);
-
-      _drawFlowArrow(
-        canvas,
-        topPath,
-        0.42,
-        strokePaint.color,
-      );
-      _drawFlowArrow(
-        canvas,
-        bottomPath,
-        0.58,
-        strokePaint.color,
-      );
+      canvas.drawPath(top, glowPaint);
+      canvas.drawPath(bottom, glowPaint);
+      canvas.drawPath(top, basePaint);
+      canvas.drawPath(bottom, basePaint);
     }
-
-    // Vijat afër magnetit
-    final nearOffsets = <double>[8, 14, 21];
-
-    for (final offset in nearOffsets) {
-      final topNear = Path()
-        ..moveTo(rightFace.dx - 1, magnetCenter.dy - magnetHalfHeight - 1.5)
-        ..cubicTo(
-          rightFace.dx + offset * 0.45,
-          magnetCenter.dy - magnetHalfHeight - 2,
-          magnetCenter.dx + offset * 0.62,
-          magnetCenter.dy - (magnetHalfHeight + offset),
-          magnetCenter.dx,
-          magnetCenter.dy - (magnetHalfHeight + offset),
-        )
-        ..cubicTo(
-          magnetCenter.dx - offset * 0.62,
-          magnetCenter.dy - (magnetHalfHeight + offset),
-          leftFace.dx - offset * 0.45,
-          magnetCenter.dy - magnetHalfHeight - 2,
-          leftFace.dx + 1,
-          magnetCenter.dy - magnetHalfHeight - 1.5,
-        );
-
-      final bottomNear = Path()
-        ..moveTo(rightFace.dx - 1, magnetCenter.dy + magnetHalfHeight + 1.5)
-        ..cubicTo(
-          rightFace.dx + offset * 0.45,
-          magnetCenter.dy + magnetHalfHeight + 2,
-          magnetCenter.dx + offset * 0.62,
-          magnetCenter.dy + (magnetHalfHeight + offset),
-          magnetCenter.dx,
-          magnetCenter.dy + (magnetHalfHeight + offset),
-        )
-        ..cubicTo(
-          magnetCenter.dx - offset * 0.62,
-          magnetCenter.dy + (magnetHalfHeight + offset),
-          leftFace.dx - offset * 0.45,
-          magnetCenter.dy + magnetHalfHeight + 2,
-          leftFace.dx + 1,
-          magnetCenter.dy + magnetHalfHeight + 1.5,
-        );
-
-      canvas.drawPath(topNear, glowPaint);
-      canvas.drawPath(bottomNear, glowPaint);
-      canvas.drawPath(topNear, innerPaint);
-      canvas.drawPath(bottomNear, innerPaint);
-    }
-
-    final polePaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.75 * visibility)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawLine(
-      Offset(rightFace.dx + 3, magnetCenter.dy - 10),
-      Offset(rightFace.dx + 16, magnetCenter.dy - 10),
-      polePaint,
-    );
-    canvas.drawLine(
-      Offset(rightFace.dx + 3, magnetCenter.dy + 10),
-      Offset(rightFace.dx + 16, magnetCenter.dy + 10),
-      polePaint,
-    );
-    canvas.drawLine(
-      Offset(leftFace.dx - 3, magnetCenter.dy - 10),
-      Offset(leftFace.dx - 16, magnetCenter.dy - 10),
-      polePaint,
-    );
-    canvas.drawLine(
-      Offset(leftFace.dx - 3, magnetCenter.dy + 10),
-      Offset(leftFace.dx - 16, magnetCenter.dy + 10),
-      polePaint,
-    );
-  }
-
-  void _drawFlowArrow(
-      Canvas canvas,
-      Path path,
-      double t,
-      Color color,
-      ) {
-    final metrics = path.computeMetrics();
-    if (metrics.isEmpty) return;
-
-    final metric = metrics.first;
-    final tangent = metric.getTangentForOffset(metric.length * t);
-    if (tangent == null) return;
-
-    final pos = tangent.position;
-    final angle = tangent.angle;
-
-    final arrowGlow = Paint()
-      ..color = color.withOpacity(0.18)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-
-    final arrowPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.35
-      ..strokeCap = StrokeCap.round;
-
-    canvas.save();
-    canvas.translate(pos.dx, pos.dy);
-    canvas.rotate(angle);
-
-    canvas.drawLine(const Offset(-7, -4), Offset.zero, arrowGlow);
-    canvas.drawLine(const Offset(-7, 4), Offset.zero, arrowGlow);
-    canvas.drawLine(const Offset(-7, -4), Offset.zero, arrowPaint);
-    canvas.drawLine(const Offset(-7, 4), Offset.zero, arrowPaint);
-
-    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _FieldLinesPainter oldDelegate) {
-    return oldDelegate.magnetX != magnetX ||
+    return oldDelegate.progresi != progresi ||
+        oldDelegate.magnetX != magnetX ||
         oldDelegate.afersia != afersia ||
-        oldDelegate.magnetStrength != magnetStrength;
+        oldDelegate.magnetStrength != magnetStrength ||
+        oldDelegate.induction != induction;
   }
 }
 
@@ -676,84 +507,63 @@ class _CompassOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width - 54, size.height - 54);
-    const radius = 28.0;
+    final center = Offset(size.width - 58, size.height - 56);
+    const radius = 30.0;
 
-    final basePaint = Paint()
-      ..color = Colors.white.withOpacity(0.94)
-      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.white.withOpacity(0.95)
+        ..style = PaintingStyle.fill,
+    );
 
-    final borderPaint = Paint()
-      ..color = Colors.black.withOpacity(0.18)
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = const Color(0xFF1F2937).withOpacity(0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+
+    final ringPaint = Paint()
+      ..color = const Color(0xFF90A4AE).withOpacity(0.32)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    canvas.drawCircle(center, radius, basePaint);
-    canvas.drawCircle(center, radius, borderPaint);
-
-    final crossPaint = Paint()
-      ..color = Colors.black.withOpacity(0.14)
       ..strokeWidth = 1;
-
-    canvas.drawLine(
-      Offset(center.dx - 16, center.dy),
-      Offset(center.dx + 16, center.dy),
-      crossPaint,
-    );
-    canvas.drawLine(
-      Offset(center.dx, center.dy - 16),
-      Offset(center.dx, center.dy + 16),
-      crossPaint,
-    );
-
-    final pulse = 0.85 + (activity * 0.25);
+    canvas.drawCircle(center, 20, ringPaint);
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(angle);
 
-    final northPaint = Paint()
-      ..color = Colors.red.withOpacity((0.82 * pulse).clamp(0.0, 1.0))
-      ..style = PaintingStyle.fill;
+    final intensity = (0.35 + activity * 0.65).clamp(0.0, 1.0);
 
-    final southPaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(0.88)
-      ..style = PaintingStyle.fill;
-
-    final needleNorth = Path()
-      ..moveTo(0, -19)
-      ..lineTo(5.5, 0)
-      ..lineTo(-5.5, 0)
+    final north = Path()
+      ..moveTo(0, -20)
+      ..lineTo(6, 0)
+      ..lineTo(-6, 0)
       ..close();
 
-    final needleSouth = Path()
-      ..moveTo(0, 19)
-      ..lineTo(5.5, 0)
-      ..lineTo(-5.5, 0)
+    final south = Path()
+      ..moveTo(0, 20)
+      ..lineTo(6, 0)
+      ..lineTo(-6, 0)
       ..close();
 
-    canvas.drawPath(needleNorth, northPaint);
-    canvas.drawPath(needleSouth, southPaint);
-    canvas.drawCircle(Offset.zero, 3.2, Paint()..color = Colors.black87);
+    canvas.drawPath(
+      north,
+      Paint()..color = const Color(0xFFEF5350).withOpacity(0.65 + intensity * 0.35),
+    );
+
+    canvas.drawPath(
+      south,
+      Paint()..color = const Color(0xFF546E7A).withOpacity(0.88),
+    );
+
+    canvas.drawCircle(Offset.zero, 3.2, Paint()..color = const Color(0xFF1F2937));
 
     canvas.restore();
-
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: 'N',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Colors.black87,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    textPainter.paint(
-      canvas,
-      Offset(center.dx - textPainter.width / 2, center.dy - radius + 4),
-    );
   }
 
   @override
