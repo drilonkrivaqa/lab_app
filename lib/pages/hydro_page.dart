@@ -67,88 +67,299 @@ class _FaqjaGjeneratoriUjitState extends State<FaqjaGjeneratoriUjit>
 
   @override
   Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final skema = tema.colorScheme;
     final llambaNdezur = bateria >= 0.35;
     final rrjedhaEfektive = gjeneratoriAktiv ? rrjedhaUjit : 0.0;
 
-    return Column(
-      children: [
-        Expanded(
-          child: Kartela(
-            child: AnimatedBuilder(
-              animation: _kontrolleri,
-              builder: (context, _) {
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CustomPaint(
-                        painter: PiktoriGjeneratorit(
-                          progresi: _kontrolleri.value,
-                          rrjedhaUjit: rrjedhaEfektive,
-                          bateria: bateria,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final lartesiaSimulimit = (constraints.maxHeight * 0.42).clamp(
+          260.0,
+          520.0,
+        );
 
-                      // Overlay i ri për ta bërë rrjedhën e ujit më të gjallë
-                      IgnorePointer(
-                        child: _RrjedhaUjitOverlay(
-                          progresi: _kontrolleri.value,
-                          rrjedhaUjit: rrjedhaEfektive,
+        return SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Kartela(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _PaneliGjendjes(
+                        gjeneratoriAktiv: gjeneratoriAktiv,
+                        rrjedhaUjit: rrjedhaEfektive,
+                        bateria: bateria,
+                        llambaNdezur: llambaNdezur,
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        height: lartesiaSimulimit,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(18),
+                          color: skema.surfaceContainerHighest.withOpacity(0.35),
+                          border: Border.all(
+                            color: skema.outlineVariant.withOpacity(0.5),
+                          ),
                         ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: AnimatedBuilder(
+                            animation: _kontrolleri,
+                            builder: (context, _) {
+                              return Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CustomPaint(
+                                    painter: PiktoriGjeneratorit(
+                                      progresi: _kontrolleri.value,
+                                      rrjedhaUjit:
+                                      0, // heq rrjedhën e vjetër të painter-it
+                                      bateria: bateria,
+                                    ),
+                                    child: const SizedBox.expand(),
+                                  ),
+                                  IgnorePointer(
+                                    child: _RrjedhaUjitOverlay(
+                                      progresi: _kontrolleri.value,
+                                      rrjedhaUjit: rrjedhaEfektive,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _MesazhDidaktikHidro(
+                        gjeneratoriAktiv: gjeneratoriAktiv,
+                        rrjedhaUjit: rrjedhaEfektive,
+                        bateria: bateria,
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-        ),
-        Kartela(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Gjeneratori me Ujë',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
               ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Aktivizo gjeneratorin'),
-                value: gjeneratoriAktiv,
-                onChanged: (v) => setState(() => gjeneratoriAktiv = v),
-              ),
-              Text(
-                'Rrjedha e ujit: ${(rrjedhaUjit * 100).toStringAsFixed(0)}%',
-              ),
-              Slider(
-                value: rrjedhaUjit,
-                min: 0.1,
-                max: 1.0,
-                onChanged: (v) => setState(() => rrjedhaUjit = v),
-              ),
-              const Divider(height: 24),
-              InfoRresht(
-                etiketa: 'Ngarkesa e baterisë',
-                vlera: '${(bateria * 100).toStringAsFixed(0)}%',
-              ),
-              const SizedBox(height: 6),
-              InfoRresht(
-                etiketa: 'Llamba',
-                vlera: llambaNdezur ? 'Ndezur' : 'Fikur',
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: _rivendos,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Rivendos'),
+              Kartela(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gjeneratori me Ujë',
+                      style: tema.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Aktivizo gjeneratorin dhe ndrysho rrjedhën e ujit për të parë si ngarkohet bateria dhe ndizet llamba.',
+                      style: tema.textTheme.bodyMedium?.copyWith(
+                        color: tema.textTheme.bodySmall?.color,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Aktivizo gjeneratorin'),
+                      subtitle: Text(
+                        gjeneratoriAktiv
+                            ? 'Uji po lëviz sistemin dhe po ngarkon baterinë'
+                            : 'Gjeneratori është ndalur',
+                      ),
+                      value: gjeneratoriAktiv,
+                      onChanged: (v) => setState(() => gjeneratoriAktiv = v),
+                    ),
+                    const SizedBox(height: 12),
+                    _BllokuSlider(
+                      titulli: 'Rrjedha e ujit',
+                      vleraTekst:
+                      '${(rrjedhaUjit * 100).toStringAsFixed(0)}%',
+                      ikona: Icons.water_drop_rounded,
+                      femija: Slider(
+                        value: rrjedhaUjit,
+                        min: 0.1,
+                        max: 1.0,
+                        label: '${(rrjedhaUjit * 100).toStringAsFixed(0)}%',
+                        onChanged: (v) => setState(() => rrjedhaUjit = v),
+                      ),
+                    ),
+                    const Divider(height: 26),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: _gjeresiaKarteles(constraints.maxWidth),
+                          child: _VlereKartela(
+                            etiketa: 'Ngarkesa e baterisë',
+                            vlera:
+                            '${(bateria * 100).toStringAsFixed(0)}%',
+                            ikona: Icons.battery_charging_full_rounded,
+                            accent: Colors.green,
+                          ),
+                        ),
+                        SizedBox(
+                          width: _gjeresiaKarteles(constraints.maxWidth),
+                          child: _VlereKartela(
+                            etiketa: 'Llamba',
+                            vlera: llambaNdezur ? 'Ndezur' : 'Fikur',
+                            ikona: Icons.lightbulb_rounded,
+                            accent: llambaNdezur ? Colors.amber : Colors.grey,
+                          ),
+                        ),
+                        SizedBox(
+                          width: _gjeresiaKarteles(constraints.maxWidth),
+                          child: _VlereKartela(
+                            etiketa: 'Gjeneratori',
+                            vlera: gjeneratoriAktiv ? 'Aktiv' : 'Jo aktiv',
+                            ikona: Icons.settings_rounded,
+                            accent:
+                            gjeneratoriAktiv ? Colors.blue : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        onPressed: _rivendos,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Rivendos'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-      ],
+        );
+      },
+    );
+  }
+
+  double _gjeresiaKarteles(double maxWidth) {
+    if (maxWidth >= 1100) return (maxWidth - 52) / 3;
+    if (maxWidth >= 700) return (maxWidth - 42) / 2;
+    return maxWidth - 24;
+  }
+}
+
+class _PaneliGjendjes extends StatelessWidget {
+  final bool gjeneratoriAktiv;
+  final double rrjedhaUjit;
+  final double bateria;
+  final bool llambaNdezur;
+
+  const _PaneliGjendjes({
+    required this.gjeneratoriAktiv,
+    required this.rrjedhaUjit,
+    required this.bateria,
+    required this.llambaNdezur,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final skema = tema.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: skema.surfaceContainerHighest.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: skema.outlineVariant.withOpacity(0.45)),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _StatusChip(
+            ikona: gjeneratoriAktiv
+                ? Icons.play_circle_fill_rounded
+                : Icons.pause_circle_filled_rounded,
+            etiketa: gjeneratoriAktiv ? 'Gjenerator aktiv' : 'Gjenerator i ndalur',
+            ngjyra: gjeneratoriAktiv ? Colors.green : Colors.grey,
+          ),
+          _StatusChip(
+            ikona: Icons.water_drop_rounded,
+            etiketa: 'Rrjedha ${(rrjedhaUjit * 100).toStringAsFixed(0)}%',
+            ngjyra: Colors.lightBlue,
+          ),
+          _StatusChip(
+            ikona: Icons.battery_charging_full_rounded,
+            etiketa: 'Bateria ${(bateria * 100).toStringAsFixed(0)}%',
+            ngjyra: Colors.teal,
+          ),
+          _StatusChip(
+            ikona: Icons.lightbulb_rounded,
+            etiketa: llambaNdezur ? 'Llamba ndezur' : 'Llamba fikur',
+            ngjyra: llambaNdezur ? Colors.amber : Colors.grey,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MesazhDidaktikHidro extends StatelessWidget {
+  final bool gjeneratoriAktiv;
+  final double rrjedhaUjit;
+  final double bateria;
+
+  const _MesazhDidaktikHidro({
+    required this.gjeneratoriAktiv,
+    required this.rrjedhaUjit,
+    required this.bateria,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final skema = tema.colorScheme;
+
+    String mesazhi;
+    if (!gjeneratoriAktiv) {
+      mesazhi =
+      'Gjeneratori është i ndalur. Pa rrjedhje aktive të ujit, bateria nuk vazhdon të ngarkohet.';
+    } else if (rrjedhaUjit < 0.3) {
+      mesazhi =
+      'Rrjedha e ujit është e vogël. Provo ta rrisësh që bateria të ngarkohet më shpejt.';
+    } else if (bateria < 0.35) {
+      mesazhi =
+      'Sistemi po punon. Uji po lëviz turbinën dhe bateria po grumbullon energji.';
+    } else {
+      mesazhi =
+      'Bateria ka arritur nivel të mjaftueshëm dhe llamba ndizet falë energjisë së prodhuar nga uji.';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: skema.primaryContainer.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.school_rounded),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              mesazhi,
+              style: tema.textTheme.bodyMedium,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -169,8 +380,6 @@ class _RrjedhaUjitOverlay extends StatelessWidget {
         final w = c.maxWidth;
         final h = c.maxHeight;
 
-        // Pozicionim i përafërt që zakonisht funksionon mirë mbi skenën ekzistuese.
-        // Mund ta rregullosh pak më vonë vetëm nëse do që të përputhet 100% me painter-in.
         final left = w * 0.09;
         final top = h * 0.12;
         final width = w * 0.24;
@@ -195,7 +404,6 @@ class _RrjedhaUjitOverlay extends StatelessWidget {
                 ),
               ),
             ),
-
             Positioned(
               left: left + width * 0.08,
               top: top + height * 0.80,
@@ -238,7 +446,6 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rrect);
 
-    // Bazë e ujit
     final paintBase = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
@@ -253,7 +460,6 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
 
     canvas.drawRRect(rrect, paintBase);
 
-    // Shirita që lëvizin poshtë për ndjesi më reale të rrjedhës
     final stripeCount = 8 + (intensiteti * 8).round();
     for (int i = 0; i < stripeCount; i++) {
       final phase = (progresi + i * 0.13) % 1.0;
@@ -280,7 +486,6 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
       canvas.drawRect(stripeRect, stripePaint);
     }
 
-    // Vala anësore për të mos u dukur si bllok statik
     final path = Path();
     final amplitude = size.width * (0.04 + intensiteti * 0.03);
     final waveCount = 3.0;
@@ -288,8 +493,9 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
 
     path.moveTo(0, 0);
     for (double y = 0; y <= size.height; y += 4) {
-      final nx = math.sin((y / size.height) * math.pi * 2 * waveCount + shift) *
-          amplitude;
+      final nx =
+          math.sin((y / size.height) * math.pi * 2 * waveCount + shift) *
+              amplitude;
       path.lineTo(size.width * 0.18 + nx, y);
     }
     path.lineTo(0, size.height);
@@ -299,7 +505,6 @@ class _PiktoriRrjedhesSeUjit extends CustomPainter {
       ..color = Colors.white.withOpacity(opacityBase * 0.22);
     canvas.drawPath(path, sidePaint);
 
-    // Disa pika të vogla uji
     final pikaPaint = Paint()
       ..color = Colors.white.withOpacity(0.28 + 0.20 * intensiteti);
 
@@ -360,7 +565,6 @@ class _PiktoriRipple extends CustomPainter {
       canvas.drawOval(rect, paint);
     }
 
-    // Shkumë e lehtë pranë goditjes së ujit
     final foamPaint = Paint()
       ..color = Colors.white.withOpacity(0.16 + 0.18 * intensiteti);
 
@@ -378,6 +582,179 @@ class _PiktoriRipple extends CustomPainter {
     return oldDelegate.progresi != progresi ||
         oldDelegate.intensiteti != intensiteti ||
         oldDelegate.opacityBase != opacityBase;
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final IconData ikona;
+  final String etiketa;
+  final Color ngjyra;
+
+  const _StatusChip({
+    required this.ikona,
+    required this.etiketa,
+    required this.ngjyra,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: ngjyra.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: ngjyra.withOpacity(0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(ikona, size: 18, color: ngjyra),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              etiketa,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: ngjyra,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BllokuSlider extends StatelessWidget {
+  final String titulli;
+  final String vleraTekst;
+  final IconData ikona;
+  final Widget femija;
+
+  const _BllokuSlider({
+    required this.titulli,
+    required this.vleraTekst,
+    required this.ikona,
+    required this.femija,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final skema = tema.colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      decoration: BoxDecoration(
+        color: skema.surfaceContainerHighest.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: skema.outlineVariant.withOpacity(0.35)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: 6,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(ikona, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    titulli,
+                    style: tema.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                vleraTekst,
+                style: tema.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: femija,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VlereKartela extends StatelessWidget {
+  final String etiketa;
+  final String vlera;
+  final IconData ikona;
+  final Color? accent;
+
+  const _VlereKartela({
+    required this.etiketa,
+    required this.vlera,
+    required this.ikona,
+    this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final skema = tema.colorScheme;
+    final ngjyra = accent ?? skema.primary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: ngjyra.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ngjyra.withOpacity(0.20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: ngjyra.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(ikona, color: ngjyra),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  etiketa,
+                  style: tema.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  vlera,
+                  softWrap: true,
+                  style: tema.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ngjyra,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
