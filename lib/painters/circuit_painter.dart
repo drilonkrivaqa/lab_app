@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 class PiktoriQarku extends CustomPainter {
@@ -7,137 +6,367 @@ class PiktoriQarku extends CustomPainter {
   final bool qarkuMbyllur;
   final double ndricimi;
   final double rryma;
+  final double tensioni;
+  final double rezistenca;
 
   PiktoriQarku({
     required this.progresi,
     required this.qarkuMbyllur,
     required this.ndricimi,
     required this.rryma,
+    required this.tensioni,
+    required this.rezistenca,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final tel = Paint()
-      ..color = const Color(0xFF263238)
-      ..strokeWidth = 4
+    final wirePaint = Paint()
+      ..color = const Color(0xFF5C6670)
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final wireHighlight = Paint()
+      ..color = Colors.white.withOpacity(0.55)
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final left = size.width * 0.16;
+    final right = size.width * 0.84;
+    final top = size.height * 0.26;
+    final bottom = size.height * 0.72;
+
+    final bulbCenter = Offset(size.width * 0.50, top);
+    final bulbRadius = 30.0;
+
+    final resistorLeft = size.width * 0.66;
+    final resistorRight = size.width * 0.78;
+
+    final switchLeft = size.width * 0.28;
+    final switchRight = size.width * 0.38;
+
+    final batteryX = left;
+    final batteryTop = size.height * 0.38;
+    final batteryBottom = size.height * 0.58;
+
+    final bg = Paint()..color = const Color(0xFFF7F9FC);
+    canvas.drawRect(Offset.zero & size, bg);
+
+    final border = Paint()
+      ..color = Colors.black12
       ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = 1;
+    canvas.drawRect(
+      Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
+      border,
+    );
 
-    final wirePath = _krijoShtegun(size, qarkuMbyllur);
-    canvas.drawPath(wirePath, tel);
+    final path = Path();
 
-    _vizatoBaterine(canvas, size);
-    _vizatoRezistorin(canvas, size);
-    _vizatoNderpreresin(canvas, size, qarkuMbyllur);
-    _vizatoLlamben(canvas, size, ndricimi);
+    path.moveTo(batteryX, top);
+    path.lineTo(bulbCenter.dx - bulbRadius, top);
+
+    path.moveTo(bulbCenter.dx + bulbRadius, top);
+    path.lineTo(right, top);
+    path.lineTo(right, bottom);
+    path.lineTo(resistorRight, bottom);
+
+    path.moveTo(resistorLeft, bottom);
+    path.lineTo(switchRight, bottom);
 
     if (qarkuMbyllur) {
-      final metric = wirePath.computeMetrics().first;
-      final nrPikave = (10 + rryma * 2).clamp(10, 18).toInt();
-      final pPaint = Paint()..color = Colors.lightBlueAccent;
-      for (int i = 0; i < nrPikave; i++) {
-        final d = ((progresi + i / nrPikave) % 1.0) * metric.length;
-        final pos = metric.getTangentForOffset(d)?.position;
-        if (pos != null) {
-          canvas.drawCircle(pos, 3.6 + ndricimi, pPaint);
-        }
-      }
+      path.lineTo(switchLeft, bottom);
     }
-  }
 
-  Path _krijoShtegun(Size size, bool closed) {
-    final left = size.width * 0.14;
-    final right = size.width * 0.86;
-    final top = size.height * 0.22;
-    final bottom = size.height * 0.79;
-    final switchY = size.height * 0.42;
+    path.moveTo(switchLeft, bottom);
+    path.lineTo(left, bottom);
+    path.lineTo(left, batteryBottom);
 
-    final p = Path()..moveTo(left, bottom);
-    p.lineTo(left, switchY + 28);
-    if (closed) {
-      p.lineTo(left, top);
-    } else {
-      p.lineTo(left, switchY);
-    }
-    p.lineTo(size.width * 0.34, top);
-    p.lineTo(size.width * 0.64, top);
-    p.lineTo(right, top);
-    p.lineTo(right, size.height * 0.42);
-    p.arcToPoint(
-      Offset(right, size.height * 0.58),
-      radius: const Radius.circular(38),
-      clockwise: false,
+    path.moveTo(left, batteryTop);
+    path.lineTo(left, top);
+
+    canvas.drawPath(path, wirePaint);
+    canvas.drawPath(path, wireHighlight);
+
+    _drawBattery(
+      canvas,
+      x: batteryX,
+      top: batteryTop,
+      bottom: batteryBottom,
     );
-    p.lineTo(right, bottom);
-    p.lineTo(left, bottom);
-    return p;
-  }
 
-  void _vizatoBaterine(Canvas c, Size size) {
-    final x = size.width * 0.14;
-    final p = Paint()..color = Colors.black87;
-    c.drawLine(Offset(x - 12, size.height * 0.66), Offset(x - 12, size.height * 0.52), p..strokeWidth = 3);
-    c.drawLine(Offset(x + 12, size.height * 0.66), Offset(x + 12, size.height * 0.46), p..strokeWidth = 4);
-  }
+    _drawBulb(canvas, bulbCenter, bulbRadius, ndricimi);
+    _drawResistor(canvas, resistorLeft, resistorRight, bottom);
+    _drawSwitch(canvas, switchLeft, switchRight, bottom, qarkuMbyllur);
 
-  void _vizatoRezistorin(Canvas c, Size size) {
-    final y = size.height * 0.22;
-    final start = size.width * 0.34;
-    final end = size.width * 0.64;
-    final body = Rect.fromCenter(center: Offset((start + end) / 2, y), width: end - start, height: 20);
-    c.drawRRect(
-      RRect.fromRectAndRadius(body, const Radius.circular(6)),
-      Paint()..color = const Color(0xFFD7CCC8),
-    );
-    final line = Paint()..color = Colors.brown.shade700..strokeWidth = 2;
-    for (int i = 1; i <= 3; i++) {
-      final x = body.left + (body.width / 4) * i;
-      c.drawLine(Offset(x, body.top + 2), Offset(x, body.bottom - 2), line);
-    }
-    c.drawRRect(
-      RRect.fromRectAndRadius(body, const Radius.circular(6)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = Colors.brown.shade900,
-    );
-  }
-
-  void _vizatoNderpreresin(Canvas c, Size size, bool closed) {
-    final x = size.width * 0.14;
-    final y = size.height * 0.42;
-    final paint = Paint()..color = Colors.black87..strokeWidth = 3;
-    c.drawCircle(Offset(x, y), 4, paint);
-    c.drawCircle(Offset(x + 30, y - 18), 4, paint);
-    final angle = closed ? -0.54 : -0.18;
-    c.drawLine(
-      Offset(x, y),
-      Offset(x + 30 * math.cos(angle), y + 30 * math.sin(angle)),
-      paint,
-    );
-  }
-
-  void _vizatoLlamben(Canvas c, Size size, double level) {
-    final center = Offset(size.width * 0.86, size.height * 0.50);
-    final r = size.width * 0.06;
-    if (level > 0) {
-      c.drawCircle(
-        center,
-        r + 18,
-        Paint()
-          ..color = Colors.amber.withOpacity(0.18 + level * 0.25)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18),
+    if (qarkuMbyllur) {
+      _drawCharges(
+        canvas,
+        size,
+        left: left,
+        right: right,
+        top: top,
+        bottom: bottom,
+        bulbCenter: bulbCenter,
+        bulbRadius: bulbRadius,
+        resistorLeft: resistorLeft,
+        resistorRight: resistorRight,
+        switchLeft: switchLeft,
       );
     }
-    c.drawCircle(center, r, Paint()..color = Color.lerp(Colors.grey.shade300, Colors.amber.shade400, level)!);
-    c.drawCircle(
-      center,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = Colors.black87,
+
+    _drawLabel(
+      canvas,
+      'Bateri\n${tensioni.toStringAsFixed(0)} V',
+      Offset(batteryX, batteryBottom + 14),
     );
+    _drawLabel(
+      canvas,
+      'Llambë',
+      Offset(bulbCenter.dx, top - 54),
+    );
+    _drawLabel(
+      canvas,
+      'Rezistencë\n${rezistenca.toStringAsFixed(0)} Ω',
+      Offset((resistorLeft + resistorRight) / 2, bottom + 16),
+    );
+    _drawLabel(
+      canvas,
+      qarkuMbyllur ? 'Çelësi mbyllur' : 'Çelësi hapur',
+      Offset((switchLeft + switchRight) / 2, bottom + 22),
+    );
+  }
+
+  void _drawBattery(
+      Canvas canvas, {
+        required double x,
+        required double top,
+        required double bottom,
+      }) {
+    final longLine = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 4;
+
+    final shortLine = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 2.5;
+
+    canvas.drawLine(
+      Offset(x - 9, top),
+      Offset(x - 9, bottom),
+      longLine,
+    );
+    canvas.drawLine(
+      Offset(x + 9, top + 24),
+      Offset(x + 9, bottom - 24),
+      shortLine,
+    );
+
+    final tpPlus = TextPainter(
+      text: const TextSpan(
+        text: '+',
+        style: TextStyle(
+          color: Colors.red,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tpPlus.paint(canvas, Offset(x + 18, top - 4));
+
+    final tpMinus = TextPainter(
+      text: const TextSpan(
+        text: '-',
+        style: TextStyle(
+          color: Colors.blue,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tpMinus.paint(canvas, Offset(x + 18, bottom - 14));
+  }
+
+  void _drawBulb(
+      Canvas canvas,
+      Offset center,
+      double radius,
+      double brightness,
+      ) {
+    if (brightness > 0) {
+      final glow = Paint()
+        ..color = Colors.yellow.withOpacity(0.35 + brightness * 0.3)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+      canvas.drawCircle(center, radius + 10, glow);
+    }
+
+    final fill = Paint()
+      ..color = Color.lerp(
+        const Color(0xFFE8EDF3),
+        const Color(0xFFFFE082),
+        brightness,
+      )!;
+
+    final stroke = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawCircle(center, radius, fill);
+    canvas.drawCircle(center, radius, stroke);
+
+    final filament = Paint()
+      ..color = Color.lerp(Colors.black54, Colors.orange.shade700, brightness)!
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..moveTo(center.dx - 12, center.dy + 4)
+      ..lineTo(center.dx - 6, center.dy - 4)
+      ..lineTo(center.dx, center.dy + 4)
+      ..lineTo(center.dx + 6, center.dy - 4)
+      ..lineTo(center.dx + 12, center.dy + 4);
+
+    canvas.drawPath(path, filament);
+
+    final baseRect = Rect.fromCenter(
+      center: Offset(center.dx, center.dy + radius + 12),
+      width: 22,
+      height: 16,
+    );
+
+    canvas.drawRect(baseRect, Paint()..color = const Color(0xFF9AA4AE));
+    canvas.drawRect(
+      baseRect,
+      Paint()
+        ..color = Colors.black87
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2,
+    );
+  }
+
+  void _drawResistor(
+      Canvas canvas,
+      double left,
+      double right,
+      double y,
+      ) {
+    final resistorPaint = Paint()
+      ..color = const Color(0xFFF5D7A1)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = Colors.black87
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final rect = Rect.fromLTWH(left, y - 16, right - left, 32);
+    canvas.drawRect(rect, resistorPaint);
+    canvas.drawRect(rect, borderPaint);
+
+    final stripePaint1 = Paint()..color = Colors.brown;
+    final stripePaint2 = Paint()..color = Colors.red;
+    final stripePaint3 = Paint()..color = Colors.blue;
+
+    canvas.drawRect(Rect.fromLTWH(left + 14, y - 16, 6, 32), stripePaint1);
+    canvas.drawRect(Rect.fromLTWH(left + 28, y - 16, 6, 32), stripePaint2);
+    canvas.drawRect(Rect.fromLTWH(left + 42, y - 16, 6, 32), stripePaint3);
+  }
+
+  void _drawSwitch(
+      Canvas canvas,
+      double left,
+      double right,
+      double y,
+      bool closed,
+      ) {
+    final pointPaint = Paint()..color = Colors.black87;
+    canvas.drawCircle(Offset(left, y), 5, pointPaint);
+    canvas.drawCircle(Offset(right, y), 5, pointPaint);
+
+    final armPaint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    if (closed) {
+      canvas.drawLine(Offset(left, y), Offset(right, y), armPaint);
+    } else {
+      canvas.drawLine(Offset(left, y), Offset(right - 6, y - 18), armPaint);
+    }
+  }
+
+  void _drawCharges(
+      Canvas canvas,
+      Size size, {
+        required double left,
+        required double right,
+        required double top,
+        required double bottom,
+        required Offset bulbCenter,
+        required double bulbRadius,
+        required double resistorLeft,
+        required double resistorRight,
+        required double switchLeft,
+      }) {
+    final points = <Offset>[];
+
+    for (double x = left; x < bulbCenter.dx - bulbRadius; x += 22) {
+      points.add(Offset(x, top));
+    }
+    for (double x = bulbCenter.dx + bulbRadius; x < right; x += 22) {
+      points.add(Offset(x, top));
+    }
+    for (double y = top; y < bottom; y += 22) {
+      points.add(Offset(right, y));
+    }
+    for (double x = right; x > resistorRight; x -= 22) {
+      points.add(Offset(x, bottom));
+    }
+    for (double x = resistorLeft; x > switchLeft; x -= 22) {
+      points.add(Offset(x, bottom));
+    }
+    for (double x = switchLeft; x > left; x -= 22) {
+      points.add(Offset(x, bottom));
+    }
+    for (double y = bottom; y > top; y -= 22) {
+      points.add(Offset(left, y));
+    }
+
+    if (points.isEmpty) return;
+
+    final shift = (progresi * points.length).floor();
+
+    for (int i = 0; i < points.length; i++) {
+      final p = points[(i + shift) % points.length];
+      final opacity = i % 4 == 0 ? 1.0 : 0.45;
+      final paint = Paint()
+        ..color = const Color(0xFF42A5F5).withOpacity(opacity);
+      canvas.drawCircle(p, 4, paint);
+    }
+  }
+
+  void _drawLabel(Canvas canvas, String text, Offset center) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(
+          color: Colors.black87,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          height: 1.15,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: 120);
+
+    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy));
   }
 
   @override
@@ -145,6 +374,8 @@ class PiktoriQarku extends CustomPainter {
     return progresi != oldDelegate.progresi ||
         qarkuMbyllur != oldDelegate.qarkuMbyllur ||
         ndricimi != oldDelegate.ndricimi ||
-        rryma != oldDelegate.rryma;
+        rryma != oldDelegate.rryma ||
+        tensioni != oldDelegate.tensioni ||
+        rezistenca != oldDelegate.rezistenca;
   }
 }
