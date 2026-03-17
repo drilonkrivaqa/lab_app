@@ -48,7 +48,6 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
   Duration _lastTick = Duration.zero;
 
   // Pozicion i përafërt i spiralës në koordinata lokale të painter-it
-  // I lëmë të sinkronizuara me logjikën ekzistuese.
   static const double _coilCenterX = 90.0;
   static const double _minMagnetX = -150.0;
   static const double _maxMagnetX = 150.0;
@@ -90,7 +89,6 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
     _lastTick = now;
 
     if (!_isDragging) {
-      // Inerci + damping
       magnetX += magnetVelocity * dt;
       magnetX = magnetX.clamp(_minMagnetX, _maxMagnetX);
 
@@ -109,27 +107,24 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
     final proximity = _afersia;
     final speed = magnetVelocity.abs();
 
-    // Induksioni të varet kryesisht nga lëvizja pranë spirales
     final fuqiRaw = InduksionModel.llogaritFuqine(
       shpejtesia: speed,
       largesiaNorm: 1 - proximity,
     );
 
-    // Përforcim sipas parametrave të simulimit
-    final turnsFactor = ui.lerpDouble(0.75, 1.5, ((coilTurns - 5) / 45).clamp(0.0, 1.0))!;
-    final strengthFactor = ui.lerpDouble(0.6, 1.6, magnetStrength.clamp(0.0, 1.0))!;
-    final bulbFactor = ui.lerpDouble(0.7, 1.5, bulbSensitivity.clamp(0.0, 1.0))!;
+    final turnsFactor =
+    ui.lerpDouble(0.75, 1.5, ((coilTurns - 5) / 45).clamp(0.0, 1.0))!;
+    final strengthFactor =
+    ui.lerpDouble(0.6, 1.6, magnetStrength.clamp(0.0, 1.0))!;
+    final bulbFactor =
+    ui.lerpDouble(0.7, 1.5, bulbSensitivity.clamp(0.0, 1.0))!;
 
     final targetInduction =
     (fuqiRaw * turnsFactor * strengthFactor * bulbFactor).clamp(0.0, 1.0);
 
-    // Smooth response vizuale
     forcaInduksionit =
         ui.lerpDouble(forcaInduksionit, targetInduction, 0.12)!.clamp(0.0, 1.0);
 
-    // Compass reaction
-    // Kur magneti është në të majtë të spiralës, fusha lokale anon në një kah,
-    // kur është në të djathtë anon në kahun tjetër.
     final dx = (_coilCenterX - magnetX);
     final normDx = (dx / 140).clamp(-1.0, 1.0);
     final fieldInfluence = (_afersia * magnetStrength).clamp(0.0, 1.0);
@@ -249,7 +244,8 @@ class _FaqjaMagnetiState extends State<FaqjaMagneti>
                           left: 12,
                           top: 12,
                           child: _BadgeInfo(
-                            label: llambaNdezur ? 'Llamba: Ndezur' : 'Llamba: Fikur',
+                            label:
+                            llambaNdezur ? 'Llamba: Ndezur' : 'Llamba: Fikur',
                             icon: llambaNdezur
                                 ? Icons.lightbulb
                                 : Icons.lightbulb_outline,
@@ -420,88 +416,198 @@ class _FieldLinesPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final centerY = size.height * 0.40;
     final magnetCenter = Offset(size.width * 0.5 + magnetX, centerY);
-    final intensity = (0.20 + (afersia * 0.55) + (magnetStrength * 0.25))
+
+    final intensity = (0.18 + (afersia * 0.50) + (magnetStrength * 0.30))
         .clamp(0.15, 0.95);
 
-    final paint = Paint()
-      ..color = Colors.blueGrey.withOpacity(intensity * 0.50)
+    final mainPaint = Paint()
+      ..color = Colors.blueGrey.withOpacity(intensity * 0.52)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = 1.25
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-    final smallPaint = Paint()
-      ..color = Colors.blueGrey.withOpacity(intensity * 0.34)
+    final softPaint = Paint()
+      ..color = Colors.blueGrey.withOpacity(intensity * 0.30)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9;
+      ..strokeWidth = 0.95
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
 
-    final radii = <double>[36, 54, 76, 102, 132];
+    const magnetHalfWidth = 38.0;
+    const magnetHalfHeight = 18.0;
 
-    for (final r in radii) {
-      final pathTop = Path()
-        ..moveTo(magnetCenter.dx - r, magnetCenter.dy)
-        ..quadraticBezierTo(
+    final leftFace = Offset(magnetCenter.dx - magnetHalfWidth, magnetCenter.dy);
+    final rightFace = Offset(magnetCenter.dx + magnetHalfWidth, magnetCenter.dy);
+
+    // Vijat e jashtme: dalin nga një skaj, rrotullohen përreth magnetit
+    // dhe futen te skaji tjetër. Tani janë më "bar magnet" dhe jo si sy.
+    final outerGaps = <double>[14, 28, 44, 62, 82];
+
+    for (int i = 0; i < outerGaps.length; i++) {
+      final gap = outerGaps[i];
+      final paint = i < 4 ? mainPaint : softPaint;
+
+      final topPath = Path()
+        ..moveTo(rightFace.dx, rightFace.dy - magnetHalfHeight - 2)
+        ..cubicTo(
+          rightFace.dx + gap * 0.55,
+          rightFace.dy - magnetHalfHeight - 4,
+          magnetCenter.dx + gap * 0.90,
+          magnetCenter.dy - gap * 0.95,
           magnetCenter.dx,
-          magnetCenter.dy - r * 0.92,
-          magnetCenter.dx + r,
-          magnetCenter.dy,
+          magnetCenter.dy - gap,
+        )
+        ..cubicTo(
+          magnetCenter.dx - gap * 0.90,
+          magnetCenter.dy - gap * 0.95,
+          leftFace.dx - gap * 0.55,
+          leftFace.dy - magnetHalfHeight - 4,
+          leftFace.dx,
+          leftFace.dy - magnetHalfHeight - 2,
         );
 
-      final pathBottom = Path()
-        ..moveTo(magnetCenter.dx - r, magnetCenter.dy)
-        ..quadraticBezierTo(
+      final bottomPath = Path()
+        ..moveTo(rightFace.dx, rightFace.dy + magnetHalfHeight + 2)
+        ..cubicTo(
+          rightFace.dx + gap * 0.55,
+          rightFace.dy + magnetHalfHeight + 4,
+          magnetCenter.dx + gap * 0.90,
+          magnetCenter.dy + gap * 0.95,
           magnetCenter.dx,
-          magnetCenter.dy + r * 0.92,
-          magnetCenter.dx + r,
-          magnetCenter.dy,
+          magnetCenter.dy + gap,
+        )
+        ..cubicTo(
+          magnetCenter.dx - gap * 0.90,
+          magnetCenter.dy + gap * 0.95,
+          leftFace.dx - gap * 0.55,
+          leftFace.dy + magnetHalfHeight + 4,
+          leftFace.dx,
+          leftFace.dy + magnetHalfHeight + 2,
         );
 
-      canvas.drawPath(pathTop, paint);
-      canvas.drawPath(pathBottom, paint);
+      canvas.drawPath(topPath, paint);
+      canvas.drawPath(bottomPath, paint);
+
+      _drawFlowArrow(
+        canvas,
+        topPath,
+        0.42,
+        paint.color,
+      );
+      _drawFlowArrow(
+        canvas,
+        bottomPath,
+        0.58,
+        paint.color,
+      );
     }
 
-    for (final r in <double>[22, 30]) {
-      final pathTop = Path()
-        ..moveTo(magnetCenter.dx - r, magnetCenter.dy)
-        ..quadraticBezierTo(
+    // Vijat afër trupit të magnetit: ndjekin më shumë konturin e tij.
+    final nearOffsets = <double>[8, 14];
+
+    for (final offset in nearOffsets) {
+      final topNear = Path()
+        ..moveTo(rightFace.dx - 1, magnetCenter.dy - magnetHalfHeight - 1.5)
+        ..cubicTo(
+          rightFace.dx + offset * 0.45,
+          magnetCenter.dy - magnetHalfHeight - 2,
+          magnetCenter.dx + offset * 0.60,
+          magnetCenter.dy - (magnetHalfHeight + offset),
           magnetCenter.dx,
-          magnetCenter.dy - r * 0.86,
-          magnetCenter.dx + r,
-          magnetCenter.dy,
+          magnetCenter.dy - (magnetHalfHeight + offset),
+        )
+        ..cubicTo(
+          magnetCenter.dx - offset * 0.60,
+          magnetCenter.dy - (magnetHalfHeight + offset),
+          leftFace.dx - offset * 0.45,
+          magnetCenter.dy - magnetHalfHeight - 2,
+          leftFace.dx + 1,
+          magnetCenter.dy - magnetHalfHeight - 1.5,
         );
 
-      final pathBottom = Path()
-        ..moveTo(magnetCenter.dx - r, magnetCenter.dy)
-        ..quadraticBezierTo(
+      final bottomNear = Path()
+        ..moveTo(rightFace.dx - 1, magnetCenter.dy + magnetHalfHeight + 1.5)
+        ..cubicTo(
+          rightFace.dx + offset * 0.45,
+          magnetCenter.dy + magnetHalfHeight + 2,
+          magnetCenter.dx + offset * 0.60,
+          magnetCenter.dy + (magnetHalfHeight + offset),
           magnetCenter.dx,
-          magnetCenter.dy + r * 0.86,
-          magnetCenter.dx + r,
-          magnetCenter.dy,
+          magnetCenter.dy + (magnetHalfHeight + offset),
+        )
+        ..cubicTo(
+          magnetCenter.dx - offset * 0.60,
+          magnetCenter.dy + (magnetHalfHeight + offset),
+          leftFace.dx - offset * 0.45,
+          magnetCenter.dy + magnetHalfHeight + 2,
+          leftFace.dx + 1,
+          magnetCenter.dy + magnetHalfHeight + 1.5,
         );
 
-      canvas.drawPath(pathTop, smallPaint);
-      canvas.drawPath(pathBottom, smallPaint);
+      canvas.drawPath(topNear, softPaint);
+      canvas.drawPath(bottomNear, softPaint);
     }
 
-    _drawArrowHints(canvas, magnetCenter, paint);
+    // Pak vijë e shkurtër te polet për ta bërë më bindëse daljen/hyrjen e fushës.
+    final polePaint = Paint()
+      ..color = Colors.blueGrey.withOpacity(intensity * 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(rightFace.dx + 3, magnetCenter.dy - 10),
+      Offset(rightFace.dx + 14, magnetCenter.dy - 10),
+      polePaint,
+    );
+    canvas.drawLine(
+      Offset(rightFace.dx + 3, magnetCenter.dy + 10),
+      Offset(rightFace.dx + 14, magnetCenter.dy + 10),
+      polePaint,
+    );
+    canvas.drawLine(
+      Offset(leftFace.dx - 3, magnetCenter.dy - 10),
+      Offset(leftFace.dx - 14, magnetCenter.dy - 10),
+      polePaint,
+    );
+    canvas.drawLine(
+      Offset(leftFace.dx - 3, magnetCenter.dy + 10),
+      Offset(leftFace.dx - 14, magnetCenter.dy + 10),
+      polePaint,
+    );
   }
 
-  void _drawArrowHints(Canvas canvas, Offset c, Paint paintBase) {
-    final paint = Paint()
-      ..color = paintBase.color
+  void _drawFlowArrow(
+      Canvas canvas,
+      Path path,
+      double t,
+      Color color,
+      ) {
+    final metrics = path.computeMetrics();
+    if (metrics.isEmpty) return;
+
+    final metric = metrics.first;
+    final tangent = metric.getTangentForOffset(metric.length * t);
+    if (tangent == null) return;
+
+    final pos = tangent.position;
+    final angle = tangent.angle;
+
+    final arrowPaint = Paint()
+      ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
 
-    final offsets = <Offset>[
-      const Offset(-60, -36),
-      const Offset(60, -36),
-      const Offset(-60, 36),
-      const Offset(60, 36),
-    ];
+    canvas.save();
+    canvas.translate(pos.dx, pos.dy);
+    canvas.rotate(angle);
 
-    for (final o in offsets) {
-      final p = c + o;
-      canvas.drawLine(p, p + const Offset(8, -4), paint);
-      canvas.drawLine(p, p + const Offset(8, 4), paint);
-    }
+    canvas.drawLine(const Offset(-5, -3), Offset.zero, arrowPaint);
+    canvas.drawLine(const Offset(-5, 3), Offset.zero, arrowPaint);
+
+    canvas.restore();
   }
 
   @override
