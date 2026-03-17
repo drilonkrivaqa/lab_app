@@ -117,25 +117,45 @@ class PiktoriQarku extends CustomPainter {
       );
     }
 
-    _drawLabel(
+    // Labels moved to empty zones so they don't sit on top of the circuit
+    _drawLabelCard(
       canvas,
       'Bateri\n${tensioni.toStringAsFixed(0)} V',
-      Offset(batteryX, batteryBottom + 14),
+      Rect.fromCenter(
+        center: Offset(size.width * 0.14, size.height * 0.18),
+        width: 86,
+        height: 42,
+      ),
     );
-    _drawLabel(
+
+    _drawLabelCard(
       canvas,
       'Llambë',
-      Offset(bulbCenter.dx, top - 54),
+      Rect.fromCenter(
+        center: Offset(size.width * 0.50, size.height * 0.10),
+        width: 72,
+        height: 34,
+      ),
     );
-    _drawLabel(
+
+    _drawLabelCard(
       canvas,
       'Rezistencë\n${rezistenca.toStringAsFixed(0)} Ω',
-      Offset((resistorLeft + resistorRight) / 2, bottom + 16),
+      Rect.fromCenter(
+        center: Offset(size.width * 0.80, size.height * 0.86),
+        width: 104,
+        height: 42,
+      ),
     );
-    _drawLabel(
+
+    _drawLabelCard(
       canvas,
-      qarkuMbyllur ? 'Çelësi mbyllur' : 'Çelësi hapur',
-      Offset((switchLeft + switchRight) / 2, bottom + 22),
+      qarkuMbyllur ? 'Çelësi\nmbyllur' : 'Çelësi\nhapur',
+      Rect.fromCenter(
+        center: Offset(size.width * 0.18, size.height * 0.86),
+        width: 92,
+        height: 42,
+      ),
     );
   }
 
@@ -347,9 +367,6 @@ class PiktoriQarku extends CustomPainter {
 
     if (points.isEmpty) return;
 
-    // Kjo është pjesa e rëndësishme:
-    // progresi bazë shumëzohet me shpejtësinë reale
-    // që varet nga tensioni / rezistenca.
     final effectiveProgress = (progresi * shpejtesiaNgarkesave * 6.0) % 1.0;
     final shift = (effectiveProgress * points.length).floor();
 
@@ -366,22 +383,43 @@ class PiktoriQarku extends CustomPainter {
     }
   }
 
-  void _drawLabel(Canvas canvas, String text, Offset center) {
+  void _drawLabelCard(Canvas canvas, String text, Rect rect) {
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(10));
+
+    canvas.drawRRect(
+      rrect,
+      Paint()..color = Colors.white.withOpacity(0.92),
+    );
+
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = Colors.black12
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
     final tp = TextPainter(
       text: TextSpan(
         text: text,
         style: const TextStyle(
           color: Colors.black87,
-          fontSize: 13,
+          fontSize: 12.5,
           fontWeight: FontWeight.w600,
           height: 1.15,
         ),
       ),
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
-    )..layout(maxWidth: 120);
+    )..layout(maxWidth: rect.width - 10);
 
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy));
+    tp.paint(
+      canvas,
+      Offset(
+        rect.center.dx - tp.width / 2,
+        rect.center.dy - tp.height / 2,
+      ),
+    );
   }
 
   @override
