@@ -25,7 +25,7 @@ class _FaqjaKryesoreState extends State<FaqjaKryesore> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Laboratori i Fizikës'), centerTitle: true),
+      appBar: AppBar(title: const Text('LabApp'), centerTitle: true),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
         child: KeyedSubtree(

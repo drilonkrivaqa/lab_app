@@ -12,7 +12,7 @@ class LaboratoriFizikesApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Laboratori i Fizikës',
+      title: 'LabApp',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: Colors.indigo,
